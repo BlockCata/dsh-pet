@@ -5,7 +5,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { EventEmitter } = require('node:events');
 
-async function boot({ holdLoad = false, streamReply, initialPets, initialMemory = {}, attachmentStore, browserSearch, browserReader } = {}) {
+async function boot({ holdLoad = false, streamReply, initialPets, initialMemory = {}, attachmentStore, browserSearch, browserReader, browserTransport, browserParser, browserRobots } = {}) {
   const windows = [];
   const handlers = new Map();
   const saves = [];
@@ -67,7 +67,7 @@ async function boot({ holdLoad = false, streamReply, initialPets, initialMemory 
   const screen = new EventEmitter();
   Object.assign(screen, { getAllDisplays: () => [display], getPrimaryDisplay: () => display, getDisplayMatching: () => display,
     getCursorScreenPoint: () => ({ x: 110, y: 210 }) });
-  const electron = { app, ipcMain: ipc, powerMonitor, screen, BrowserWindow: Window,
+  const electron = { app, ipcMain: ipc, powerMonitor, screen, BrowserWindow: Window, session: {},
     shell: { openExternal: async (url) => { opened.push(url); } },
     Menu: { buildFromTemplate: (items) => ({ items }) },
     nativeImage: { createFromPath: () => ({ resize: () => ({}) }) },
@@ -139,12 +139,19 @@ async function boot({ holdLoad = false, streamReply, initialPets, initialMemory 
         listModels: async (connection) => { aiModelRequests.push(connection); return ['Furen-max', 'Furen-large']; },
         streamReply: streamReply || async function* () { yield { type: 'done' }; },
       };
-      if (name === './browser-search/service.js') throw new Error('production main must not load active browser-search service');
-      if (name === './browser-search/blocked.js') return { createBlockedBrowserSearch: (...args) => {
-        browserFactoryCalls.push(args);
-        return browserReader || { async search() { return { status: 'blocked', sources: [] }; }, cancel() {}, dispose() {} };
+      if (name === './browser-search/transport.js') return { createPinnedHttpsTransport: (...args) => {
+        browserFactoryCalls.push(['transport', args]);
+        return browserTransport || { async fetchHop() { return { ok: false, code: 'response-status-403' }; } };
       } };
-      if (name === './browser-search/coordinator.js') return { createWebQueryCoordinator: (input) => browserSearch || require('../src/browser-search/coordinator.js').createWebQueryCoordinator(input) };
+      if (name === './browser-search/parser.js') return { createInertDocumentParser: (...args) => {
+        browserFactoryCalls.push(['parser', args]);
+        return browserParser || { async parseSearchResults() { return []; }, async parsePage() { return { title: '', text: '' }; }, async dispose() {} };
+      } };
+      if (name === './browser-search/robots.js') return { createRobotsPolicy: (...args) => {
+        browserFactoryCalls.push(['robots', args]);
+        return browserRobots || { async check() { return { allowed: true }; }, dispose() {} };
+      } };
+      if (name === './browser-search/coordinator.js') return { createWebQueryCoordinator: (input) => browserSearch || require('../src/browser-search/coordinator.js').createWebQueryCoordinator({ ...input, reader: browserReader || input.reader }) };
       return require(name.startsWith('.') ? path.resolve(root, name) : name);
     },
   });
@@ -868,9 +875,17 @@ test('全域搜尋預算只可由設定視窗更新並保存，且安全政策�
   }), /搜尋預算/);
 });
 
-test('main production factory only constructs the blocked browser adapter without runtime inputs', async () => {
+test('main production factory wires the pinned transport, inert parser, and robots policy', async () => {
+  const transportCalls = [];
+  const browserTransport = { async fetchHop(url, options) {
+    transportCalls.push({ url, options });
+    return { ok: true, kind: 'body', requestUrl: url, statusCode: 200, mediaType: 'text/html', charset: 'utf-8', body: '<search />' };
+  } };
+  const browserParser = { async parseSearchResults() { return []; }, async parsePage() { return { title: '', text: '' }; }, async dispose() {} };
   const env = await boot({
     initialPets: [{ id: 'a', size: 100, x: 100, y: 200, displayId: 1, visible: true, roaming: true, webQueryEnabled: true }],
+    browserTransport,
+    browserParser,
     streamReply: async function* (request) {
       if (request.mode === 'greeting') yield { type: 'done' };
       else { yield { type: 'search-decision', decision: { type: 'search', query: '公開資料' } }; yield { type: 'done' }; }
@@ -879,16 +894,18 @@ test('main production factory only constructs the blocked browser adapter withou
   env.find('chat').click();
   await new Promise(setImmediate);
 
-  assert.equal(env.browserFactoryCalls.length, 1);
-  assert.deepEqual(env.browserFactoryCalls[0], []);
+  await env.handlers.get('chat:send')({ sender: env.windows[1].webContents }, { requestId: 'pinned-reader-factory', text: '查詢' });
+
+  assert.deepEqual(env.browserFactoryCalls.map(([name]) => name).sort(), ['parser', 'robots', 'transport']);
+  assert.equal(transportCalls[0].url, 'https://www.google.com/search?q=%E5%85%AC%E9%96%8B%E8%B3%87%E6%96%99');
   assert.deepEqual(env.diarySchedules, []);
 });
 
-test('production main 維持 blocked，且 renderer source IPC 只提交兩個識別碼', async () => {
+test('production main 接上 pinned reader，且 renderer source IPC 只提交兩個識別碼', async () => {
   const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
-  assert.doesNotMatch(main, /browser-search\/(?:production|service)\.js/);
+  assert.match(main, /browser-search\/service\.js/);
   assert.doesNotMatch(main, /process\.(?:env|argv)/);
-  assert.doesNotMatch(main, /createPinnedBrowserSearch|verified\s*:/);
+  assert.match(main, /createPinnedBrowserSearch/);
 
   let invocation;
   const api = chatPreloadApi({ invoke: async (...args) => { invocation = args; } });

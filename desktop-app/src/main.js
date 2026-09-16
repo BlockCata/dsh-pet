@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, powerMonitor, screen, Tray, Menu, nativeImage, dialog, safeStorage, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, powerMonitor, screen, Tray, Menu, nativeImage, dialog, safeStorage, shell, session } = require('electron');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { configureElectron } = require('./startup.js');
@@ -9,8 +9,11 @@ const { loadSettings, saveSettings, validateSettings } = require('./settings-sto
 const { hitsAlpha } = require('./hit-test.js');
 const { createConfigStore, normalizeBaseUrl } = require('./ai/config-store.js');
 const { testConnection, listModels, streamReply } = require('./ai/providers.js');
-const { createBlockedBrowserSearch } = require('./browser-search/blocked.js');
 const { createWebQueryCoordinator } = require('./browser-search/coordinator.js');
+const { createPinnedBrowserSearch } = require('./browser-search/service.js');
+const { createPinnedHttpsTransport } = require('./browser-search/transport.js');
+const { createInertDocumentParser } = require('./browser-search/parser.js');
+const { createRobotsPolicy } = require('./browser-search/robots.js');
 const { DEFAULT_SEARCH_BUDGET } = require('./browser-search/budget.js');
 const { createSessions } = require('./chat/session.js');
 const { createChatWindows } = require('./chat/window.js');
@@ -638,7 +641,13 @@ else {
       getConnection: () => aiConfigStore.getConnection(),
       emit: () => {},
     });
-    const browserSearch = createWebQueryCoordinator({ reader: createBlockedBrowserSearch(), getBudget: () => state.searchBudget });
+    const transport = createPinnedHttpsTransport();
+    const browserReader = createPinnedBrowserSearch({
+      transport,
+      parserFactory: () => createInertDocumentParser({ BrowserWindow, session }),
+      robotsPolicy: createRobotsPolicy({ transport }),
+    });
+    const browserSearch = createWebQueryCoordinator({ reader: browserReader, getBudget: () => state.searchBudget });
     const actionCatalog = createActionCatalog(config.animations);
     const actionChoices = createActionChoices(actionCatalog);
     actionDirector = createActionDirector({
