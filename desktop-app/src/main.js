@@ -10,6 +10,7 @@ const { hitsAlpha } = require('./hit-test.js');
 const { createConfigStore, normalizeBaseUrl } = require('./ai/config-store.js');
 const { testConnection, listModels, streamReply } = require('./ai/providers.js');
 const { createBlockedBrowserSearch } = require('./browser-search/blocked.js');
+const { createWebQueryCoordinator } = require('./browser-search/coordinator.js');
 const { createSessions } = require('./chat/session.js');
 const { createChatWindows } = require('./chat/window.js');
 const { createActionCatalog, createActionChoices, createActionDirector } = require('./chat/actions.js');
@@ -627,7 +628,7 @@ else {
       getConnection: () => aiConfigStore.getConnection(),
       emit: () => {},
     });
-    const browserSearch = createBlockedBrowserSearch();
+    const browserSearch = createWebQueryCoordinator({ reader: createBlockedBrowserSearch() });
     const actionCatalog = createActionCatalog(config.animations);
     const actionChoices = createActionChoices(actionCatalog);
     actionDirector = createActionDirector({
