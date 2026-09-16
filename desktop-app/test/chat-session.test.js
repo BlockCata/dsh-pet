@@ -415,7 +415,7 @@ test('web 搜尋在兩次查詢後以第三次模型呼叫回答，並累積限�
   assert.equal(sessions.getMessages('a').at(-1).sources.length, 6);
 });
 
-test('敏感搜尋決策即使同一 requestId 同意也不外送原始查詢', async () => {
+test('敏感搜尋同意後只由主程序外送已保存的 canonical query', async () => {
   const { createSessions } = require('../src/chat/session.js');
   const events = [];
   const browserCalls = [];
@@ -426,7 +426,7 @@ test('敏感搜尋決策即使同一 requestId 同意也不外送原始查詢', 
     browserSearch: { async search(request) { browserCalls.push(request); return { status: 'ok', sources: [{ title: '公開來源', url: 'https://example.com/', retrievedAt: '2026-09-15T00:00:00.000Z', coverage: 'page', text: '公開內容' }] }; }, cancel() {}, dispose() {} },
     streamReply: async function* () {
       modelCalls++;
-      if (modelCalls === 1) yield { type: 'search-decision', decision: { type: 'search', query: 'token=private-value' } };
+      if (modelCalls === 1) yield { type: 'search-decision', decision: { type: 'search', query: '  token=private-value  ' } };
       else { yield { type: 'search-decision', decision: { type: 'answer' } }; yield { type: 'delta', text: '已完成。' }; }
       yield { type: 'done' };
     },
@@ -439,9 +439,10 @@ test('敏感搜尋決策即使同一 requestId 同意也不外送原始查詢', 
 
   await sessions.confirmSearch('a', 'sensitive-1', true);
   await pending;
-  assert.equal(browserCalls.length, 0);
-  assert.ok(events.some((event) => event.type === 'delta' && event.text.includes('敏感資料')));
-  assert.equal(sessions.getMessages('a').at(-1).text, '這個查詢可能包含敏感資料，我不會將它外送搜尋。');
+  assert.deepEqual(browserCalls.map(({ query, sensitiveQueryApproved }) => ({ query, sensitiveQueryApproved })), [
+    { query: 'token=private-value', sensitiveQueryApproved: true },
+  ]);
+  assert.equal(sessions.getMessages('a').at(-1).text, '已完成。');
 });
 
 test('敏感搜尋的錯誤確認、拒絕與取消都不外送', async () => {

@@ -20,6 +20,20 @@ test('搜尋 URL 拒絕空白與超過輸入上限的查詢', () => {
   assert.throws(() => searchUrl('x'.repeat(8001)));
 });
 
+test('敏感搜尋指標涵蓋秘密、路徑與常見個資識別碼', () => {
+  const { isSensitiveSearchQuery } = require('../src/chat/search.js');
+  for (const query of [
+    'api_key=private-value',
+    'C:\\Users\\Alice\\secret.txt',
+    '\\\\server\\share\\secret.txt',
+    'alice@example.com',
+    '手機 +886 912 345 678',
+    '信用卡 4111 1111 1111 1111',
+    '身分證 A123456789',
+  ]) assert.equal(isSensitiveSearchQuery(query), true, query);
+  assert.equal(isSensitiveSearchQuery('公開資料的搜尋關鍵字'), false);
+});
+
 test('來源 URL 只接受無帳密的 HTTPS URL', () => {
   const { validateSourceUrl } = require('../src/chat/search.js');
 

@@ -949,7 +949,7 @@ test('main 只信任 pet webQueryEnabled，capability 直答仍保留動作與 d
   assert.equal(disabledMode, 'chat');
 });
 
-test('main 只讓所屬聊天視窗以 requestId 確認敏感搜尋', async () => {
+test('main 只讓所屬聊天視窗確認並外送保存的敏感搜尋 query', async () => {
   const browserCalls = [];
   let modelCalls = 0;
   const env = await boot({
@@ -977,8 +977,10 @@ test('main 只讓所屬聊天視窗以 requestId 確認敏感搜尋', async () =
   assert.equal(browserCalls.length, 0);
   await env.handlers.get('chat:confirm-search')({ sender: bubble.webContents }, { requestId: 'sensitive-main', approved: true, query: 'injected' });
   await pending;
-  assert.equal(browserCalls.length, 0);
-  assert.match((await env.handlers.get('chat:get')({ sender: bubble.webContents })).at(-1).text, /敏感資料/);
+  assert.deepEqual(browserCalls.map(({ query, sensitiveQueryApproved }) => ({ query, sensitiveQueryApproved })), [
+    { query: 'password=private-value', sensitiveQueryApproved: true },
+  ]);
+  assert.equal((await env.handlers.get('chat:get')({ sender: bubble.webContents })).at(-1).text, '完成。');
 });
 
 test('main 關閉 web capability 會取消既有 chat session 與 browser search', async () => {

@@ -168,6 +168,18 @@ test('coordinator captures an immutable budget snapshot at admission and gives i
   await queued;
 });
 
+test('coordinator forwards the approved sensitive-query flag to the reader', async () => {
+  const fake = createReader();
+  const coordinator = createWebQueryCoordinator({ reader: fake.reader });
+  const pending = coordinator.search({
+    petId: 'pet-a', requestId: 'a-1', query: 'alice@example.com', sensitiveQueryApproved: true,
+  });
+
+  assert.equal(fake.starts[0].sensitiveQueryApproved, true);
+  fake.finish('a-1');
+  await pending;
+});
+
 test('diagnostics retain only allowlisted terminal fields and evict by age and capacity', () => {
   let time = 0;
   const diagnostics = createWebQueryDiagnostics({ now: () => time, maxEvents: 2, retentionMs: 30 });

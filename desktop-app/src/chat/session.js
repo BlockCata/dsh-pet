@@ -1,5 +1,5 @@
 const { randomUUID } = require('node:crypto');
-const { validateSourceUrl } = require('./search.js');
+const { canonicalizeSearchQuery, isSensitiveSearchQuery, validateSourceUrl } = require('./search.js');
 
 const DISPOSE_TIMEOUT_MS = 100;
 const CLEANUP_FAILURE_REASON = 'browser-search-parser-cleanup-failed';
@@ -54,10 +54,6 @@ function createSessions({ streamReply, getConnection, getProfile = () => null, g
     if (status === 'empty') return '我沒有找到可驗證的公開資料，因此無法確認最新資訊。';
     if (status === 'sensitive') return '這個查詢可能包含敏感資料，我不會將它外送搜尋。';
     return '我目前無法取得可驗證的公開資料，因此無法確認最新資訊。';
-  }
-
-  function isSensitiveQuery(query) {
-    return /(?:api[ _-]?key|password|token|secret|金鑰|密碼|權杖|file:|[a-z]:[\\/]|\/(?:[^/\s]+\/){1,}[^/\s]*)/i.test(query);
   }
 
   function invalidateConfirmation(active) {
@@ -171,20 +167,33 @@ function createSessions({ streamReply, getConnection, getProfile = () => null, g
           completed = true;
           break;
         }
-        if (isSensitiveQuery(decision.query)) {
-          await new Promise((resolve) => {
-            active.confirmation = { resolve };
-            emit(petId, { requestId, type: 'search-confirmation' });
-          });
-          if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
-          const text = searchFailure('sensitive');
+        let canonicalQuery;
+        try { canonicalQuery = canonicalizeSearchQuery(decision.query); }
+        catch {
+          const text = searchFailure('blocked');
           assistant.text += text;
           emit(petId, { requestId, type: 'delta', text });
           completed = true;
           break;
         }
+        let sensitiveQueryApproved = false;
+        if (isSensitiveSearchQuery(canonicalQuery)) {
+          const approved = await new Promise((resolve) => {
+            active.confirmation = { resolve };
+            emit(petId, { requestId, type: 'search-confirmation' });
+          });
+          if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+          if (approved !== true) {
+            const text = searchFailure('sensitive');
+            assistant.text += text;
+            emit(petId, { requestId, type: 'delta', text });
+            completed = true;
+            break;
+          }
+          sensitiveQueryApproved = true;
+        }
         let result;
-        try { result = await browserSearch.search({ petId, requestId, query: decision.query, signal: controller.signal }); }
+        try { result = await browserSearch.search({ petId, requestId, query: canonicalQuery, sensitiveQueryApproved, signal: controller.signal }); }
         catch (error) {
           if (controller.signal.aborted || error?.name === 'AbortError') throw error;
           const text = searchFailure(error?.code === 'timeout' ? 'timeout' : 'blocked');

@@ -1,4 +1,4 @@
-const { searchUrl, normalizeSearchQuery } = require('../chat/search.js');
+const { canonicalizeSearchQuery, normalizeSearchQuery, searchUrl } = require('../chat/search.js');
 const { canonicalizePublicHttpsUrl } = require('./policy.js');
 
 const MAX_REDIRECT_HOPS = 5;
@@ -225,10 +225,12 @@ function createPinnedBrowserSearch({ transport, parserFactory, robotsPolicy, now
     return sources.length ? { status: 'ok', sources } : result('empty');
   }
 
-  async function search({ petId, requestId, query, signal } = {}) {
+  async function search({ petId, requestId, query, signal, sensitiveQueryApproved = false } = {}) {
     if (!enabled) return result('blocked', 'transport-unavailable');
     let normalized;
-    try { normalized = normalizeSearchQuery(query); }
+    try {
+      normalized = sensitiveQueryApproved === true ? canonicalizeSearchQuery(query) : normalizeSearchQuery(query);
+    }
     catch (error) { return result(error.code === 'empty' ? 'empty' : 'needs-user', error.code); }
     if (typeof petId !== 'string' || !petId || typeof requestId !== 'string' || !requestId) return result('blocked', 'invalid-request');
 

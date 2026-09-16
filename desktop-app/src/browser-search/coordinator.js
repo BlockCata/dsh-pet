@@ -91,6 +91,7 @@ function createWebQueryCoordinator({ reader, getBudget = () => ({}), diagnostics
         petId: entry.petId,
         requestId: entry.requestId,
         query: entry.query,
+        sensitiveQueryApproved: entry.sensitiveQueryApproved,
         signal: entry.signal,
         budget: entry.budget,
       });
@@ -132,7 +133,7 @@ function createWebQueryCoordinator({ reader, getBudget = () => ({}), diagnostics
     return cleanup;
   }
 
-  function search({ petId, requestId, query, signal } = {}) {
+  function search({ petId, requestId, query, signal, sensitiveQueryApproved = false } = {}) {
     if (queue.length >= MAX_QUEUED_REQUESTS && active) {
       const error = new Error('web-query-queue-full');
       error.code = 'web-query-queue-full';
@@ -144,6 +145,7 @@ function createWebQueryCoordinator({ reader, getBudget = () => ({}), diagnostics
       petId,
       requestId,
       query,
+      sensitiveQueryApproved,
       signal,
       budget: cloneBudget(getBudget()),
       startedAt: now(),

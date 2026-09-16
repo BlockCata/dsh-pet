@@ -104,6 +104,21 @@ test('blocked browser adapter remains isolated from active service inputs', asyn
   assert.deepEqual(calls, { transport: 0, parser: 0 });
 });
 
+test('service blocks sensitive query without approval and accepts only main-owned approval', async () => {
+  const { service, calls } = createHarness({ candidates: [] });
+
+  assert.deepEqual(await service.search({ petId: 'pet-sensitive', requestId: 'without-approval', query: 'alice@example.com' }), {
+    status: 'needs-user', sources: [], reason: 'needs-user',
+  });
+  assert.equal(calls.fetch.length, 0);
+
+  const result = await service.search({
+    petId: 'pet-sensitive', requestId: 'with-approval', query: '  alice@example.com  ', sensitiveQueryApproved: true,
+  });
+  assert.equal(result.status, 'empty');
+  assert.equal(new URL(calls.fetch[0].url).searchParams.get('q'), 'alice@example.com');
+});
+
 test('service uses exactly one fetchHop per hop and never exposes transport internals', async () => {
   const { service, calls } = createHarness({ candidates: [] });
 
