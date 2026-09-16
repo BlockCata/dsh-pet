@@ -476,3 +476,4 @@ npm publish --tag latest   # npm publish 自动执行 prepare 钩子（构建完
 
 - 代码：MIT
 - 素材（动画/提示词/源视频）：允许开源使用，**禁止商用**
+- 二次创作来源：[PC2005-cloud/dsh-pet](https://github.com/PC2005-cloud/dsh-pet)

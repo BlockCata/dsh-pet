@@ -208,3 +208,4 @@ AI 生成动画的配方     源视频 → 透明动画的管线    运行在 DS
 
 - 代码：MIT
 - 素材（动画/提示词/源视频）：允许开源使用，**禁止商用**
+- 二次创作来源：[PC2005-cloud/dsh-pet](https://github.com/PC2005-cloud/dsh-pet)
