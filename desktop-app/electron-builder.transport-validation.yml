@@ -1,0 +1,18 @@
+appId: local.bluemaid.browser-search-transport-validation
+productName: Browser Search Transport Validation TEST-ONLY
+asar: true
+directories:
+  output: release-transport-validation-bc9467ce31ae
+extraMetadata:
+  main: validation/browser-search/main.js
+files:
+  - package.json
+  - validation/browser-search/**/*
+  - src/browser-search/**/*
+  - src/chat/search.js
+win:
+  target:
+    - target: portable
+      arch:
+        - x64
+  artifactName: browser-search-transport-validation-${version}-${arch}.${ext}

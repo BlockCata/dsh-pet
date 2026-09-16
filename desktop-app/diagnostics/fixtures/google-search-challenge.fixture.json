@@ -1,0 +1,10 @@
+{
+  "classification": "needs-user",
+  "titleKind": "google-search-url",
+  "bodyMarkers": [
+    "我們的系統偵測到您的電腦網路送出的流量有異常情況",
+    "這頁是為了確認要求確實出自您本人"
+  ],
+  "h3LinkCount": 0,
+  "expectedSources": []
+}

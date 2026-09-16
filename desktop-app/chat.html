@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'">
+  <title>和小女僕聊天</title>
+  <link rel="stylesheet" href="chat.css">
+  <script defer src="src/chat/renderer.js"></script>
+</head>
+<body>
+  <section id="chat-overlay" aria-label="和小女僕聊天">
+    <header>
+      <div><h1 id="chat-title">和小女僕聊天</h1><p id="chat-status" role="status" aria-live="polite">準備中…</p></div>
+      <button id="chat-collapse" type="button" aria-label="暫時不回覆並收合聊天泡泡" title="暫時不回覆並收合">－</button>
+    </header>
+    <main id="chat-messages" aria-live="polite" aria-relevant="additions text"></main>
+    <form id="chat-form">
+      <label class="sr-only" for="chat-input">訊息</label>
+      <textarea id="chat-input" rows="2" maxlength="8000" placeholder="輸入想說的話…" autocomplete="off"></textarea>
+      <input id="chat-attachments" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
+      <div id="chat-attachment-list" aria-label="待送出圖片"></div>
+      <div class="actions"><button id="chat-add-image" type="button">附加圖片</button><button id="chat-edit-last" type="button" disabled hidden>編輯上一則</button><button id="chat-stop" type="button" hidden>停止</button><button id="chat-send" class="primary" type="submit">送出</button></div>
+    </form>
+    <div id="chat-resize-handle" aria-label="調整聊天框大小"></div>
+  </section>
+</body>
+</html>

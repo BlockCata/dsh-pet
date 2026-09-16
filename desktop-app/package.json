@@ -1,0 +1,48 @@
+{
+  "name": "blue-maid-desktop-pet",
+  "version": "0.5.10",
+  "private": true,
+  "description": "Windows standalone desktop pet based on the dsh-pet assets.",
+  "main": "src/main.js",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "prepare:assets": "node scripts/import-assets.cjs",
+    "test:desktop": "electron test/settings-ui.test.js --settings-ui-fixture",
+    "start": "electron --disable-gpu --disable-gpu-compositing --disable-software-rasterizer --in-process-gpu src/main.js",
+    "dist": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^43.3.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "local.bluemaid.desktoppet",
+    "productName": "藍髮小女僕桌寵",
+    "asar": true,
+    "directories": {
+      "output": "release-0.5.10"
+    },
+    "files": [
+      "index.html",
+      "style.css",
+      "settings.html",
+      "settings.css",
+      "chat.html",
+      "chat.css",
+      "diary.html",
+      "src/**/*",
+      "assets/**/*",
+      "README.md",
+      "ASSET-NOTICE.md"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "blue-maid-desktop-pet-${version}.${ext}"
+    }
+  }
+}

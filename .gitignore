@@ -29,6 +29,11 @@ node_modules/
 npm-debug.log*
 *.tgz
 
+# ── 本機驗證與工作筆記 ──
+.scratch/
+desktop-app/archive/
+desktop-app/test-profile/
+
 # ── 临时/备份目录 ──
 temp/
 

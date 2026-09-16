@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'">
+  <title>小女僕設定</title>
+  <link rel="stylesheet" href="settings.css">
+  <script defer src="src/settings-renderer.js"></script>
+</head>
+<body>
+  <header><h1>小女僕設定</h1><p>調整每一隻小女僕的大小、位置與活動方式。</p></header>
+  <div class="layout">
+    <aside aria-label="桌寵清單">
+      <div class="list-heading">我的桌寵 <span id="pet-count">0</span></div>
+      <nav id="pet-list" aria-label="選擇桌寵"></nav>
+      <button id="add-pet" class="primary" type="button" disabled>＋ 新增桌寵</button>
+    </aside>
+    <main>
+      <section id="empty-state" hidden><h2>還沒有小女僕</h2><p>按左側「新增桌寵」，加入第一隻小女僕。</p></section>
+      <form id="pet-form" hidden>
+        <div class="form-heading"><h2 id="pet-title">小女僕</h2><div><label class="copy-memory"><input id="copy-memory" type="checkbox">一併複製對話與日記</label><button id="duplicate-pet" type="button">複製桌寵</button><button id="remove-pet" class="danger" type="button">移除</button></div></div>
+        <fieldset id="pet-controls">
+          <legend class="sr-only">桌寵設定</legend>
+          <div class="toggles">
+            <label><input id="visible" type="checkbox">顯示桌寵</label>
+            <label><input id="roaming" type="checkbox">自動漫遊</label>
+            <label><input id="always-on-top" type="checkbox">永遠置頂</label>
+            <label><input id="ambient-reactions" type="checkbox">依對話氣氛自動做表情與動作</label>
+            <label class="care-option"><input id="care-enabled" type="checkbox"><span>主動關心<small>約每 15 分鐘</small></span></label>
+            <label for="web-query-enabled" class="care-option"><input id="web-query-enabled" type="checkbox"><span>允許網頁查詢<small>查詢內容與公開網頁摘錄會送給目前選擇的 AI 服務。</small></span></label>
+          </div>
+          <div class="size-row"><label for="size">大小</label><div><input id="size" type="number" min="50" max="200" step="1" required aria-describedby="size-hint"><span> %</span></div></div>
+          <p id="size-hint" class="hint">50–200%，100% 為原始大小。</p>
+          <div class="position-heading">聊天泡泡位置 <span class="hint">相對自動位置的 DIP 位移</span></div>
+          <div class="position-row">
+            <label for="chat-offset-x">水平<input id="chat-offset-x" type="number" min="-1000" max="1000" step="1" required></label>
+            <label for="chat-offset-y">垂直<input id="chat-offset-y" type="number" min="-1000" max="1000" step="1" required></label>
+            <button id="apply-chat-offset" type="button">套用泡泡位置</button>
+          </div>
+          <p id="chat-offset-hint" class="hint">新桌寵預設 0、-80；輸入 0、0 可回到自動位置。垂直負值往上，正值往下。</p>
+          <label for="display">所在螢幕</label>
+          <select id="display" aria-describedby="display-hint"></select>
+          <p id="display-hint" class="hint">切換螢幕時會移至該螢幕右下角。</p>
+          <div class="range-heading">左右漫遊範圍 <span class="hint">相對於所在螢幕工作區</span></div>
+          <div class="range-row">
+            <label for="range-left">左界<input id="range-left" type="number" min="0" max="100" step="1" required></label>
+            <label for="range-right">右界<input id="range-right" type="number" min="0" max="100" step="1" required></label>
+            <button id="apply-range" type="button">套用範圍</button>
+          </div>
+          <p id="range-hint" class="hint">預設 0–100%，桌寵會使用專案現有的走路動畫左右漫遊。</p>
+          <div class="field-label" id="anchor-label">快速定位</div>
+          <div class="anchors" role="group" aria-labelledby="anchor-label">
+            <button type="button" data-anchor="top-left">左上</button><button type="button" data-anchor="top-right">右上</button><button type="button" data-anchor="bottom-left">左下</button><button type="button" data-anchor="bottom-right">右下</button><button type="button" data-anchor="center">中央</button>
+          </div>
+        </fieldset>
+        <div class="position-heading">精確位置 <span class="hint">全域 DIP 座標，可輸入負值</span></div>
+        <div class="position-row">
+          <label for="x">X<input id="x" type="number" step="1" required></label>
+          <label for="y">Y<input id="y" type="number" step="1" required></label>
+          <button id="apply-position" type="button">套用位置</button>
+        </div>
+        <p id="position-hint" class="hint">位置需按「套用位置」儲存；其餘設定變更後自動儲存。</p>
+        <section id="profile-settings" aria-labelledby="profile-heading">
+          <div class="section-heading"><h2 id="profile-heading">角色設定檔</h2></div>
+          <p class="hint">名稱會顯示在聊天框，角色設定只會作為這隻桌寵的對話前提。</p>
+          <div class="profile-grid">
+            <label for="pet-name">桌寵名稱<input id="pet-name" type="text" maxlength="40" required></label>
+            <label for="profile-role">角色／背景<textarea id="profile-role" maxlength="500" rows="2"></textarea></label>
+            <label for="profile-personality">個性<textarea id="profile-personality" maxlength="500" rows="2"></textarea></label>
+            <label for="profile-speaking-style">說話語氣<textarea id="profile-speaking-style" maxlength="500" rows="2"></textarea></label>
+          </div>
+          <button id="save-profile" type="button">儲存角色設定</button>
+        </section>
+      </form>
+      <section id="memory-settings" aria-labelledby="memory-heading">
+        <div class="section-heading"><h2 id="memory-heading">對話與日記記憶</h2><span id="memory-summary" class="hint"></span></div>
+        <p class="hint">記憶只保存在這隻桌寵的本機資料中，會作為後續對話的參考。</p>
+        <div class="memory-grid">
+          <label for="memory-mode">保存方式
+            <select id="memory-mode">
+              <option value="diary-30d">保留日記，原對話 30 天後清理</option>
+              <option value="diary-forever">永久保留對話與日記</option>
+              <option value="diary-only">只保留日記</option>
+              <option value="off">不保存</option>
+            </select>
+          </label>
+          <label class="memory-toggle"><input id="auto-diary" type="checkbox">每 20 組問答自動寫日記</label>
+          <div class="memory-actions"><button id="view-diary" type="button">查看日記</button><button id="run-diary" type="button">立即整理日記</button><button id="clear-memory" class="danger" type="button">清除對話與日記</button></div>
+        </div>
+        <div id="diary-list" class="diary-list" aria-label="已保存日記"></div>
+      </section>
+      <section id="ai-settings" aria-labelledby="ai-heading">
+        <div class="section-heading"><h2 id="ai-heading">AI 對話連線</h2><span id="ai-key-status" class="hint"></span></div>
+        <p class="hint">金鑰只儲存在本機系統加密空間，不會顯示或傳給桌寵視窗。</p>
+        <div class="ai-grid">
+          <label for="ai-provider">服務
+            <select id="ai-provider"><option value="gemini">Gemini</option><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option><option value="custom">自訂</option></select>
+          </label>
+          <label id="ai-base-url-row" for="ai-base-url" hidden>Base URL<input id="ai-base-url" type="url" autocomplete="url" placeholder="https://api.example.com/v1"></label>
+          <label for="ai-model">模型<input id="ai-model" type="text" list="ai-model-list" autocomplete="off" required><datalist id="ai-model-list"></datalist></label>
+          <label for="ai-key">API Key<input id="ai-key" type="password" autocomplete="off" spellcheck="false"></label>
+          <div class="ai-actions"><button id="ai-save" class="primary" type="button">儲存連線</button><button id="ai-load-models" type="button">載入可用模型</button><button id="ai-test" type="button">測試連線</button><button id="ai-remove-key" type="button">清除金鑰</button></div>
+        </div>
+        <p id="ai-hint" class="hint">自訂服務可貼上 Base URL 並用當次輸入金鑰載入模型；模型清單可能包含非文字模型，仍可手動輸入。測試連線與每隻顯示桌寵的啟動問候都可能消耗 API 用量。</p>
+      </section>
+    </main>
+  </div>
+  <footer><p id="status" role="status" aria-live="polite" aria-atomic="true">正在載入設定…</p><button id="retry" type="button" hidden>重新載入</button></footer>
+</body>
+</html>

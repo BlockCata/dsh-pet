@@ -1,0 +1,10 @@
+{
+  "query": "範例大學 官方網站",
+  "selector": "a:has(h3)",
+  "minimumResultCount": 1,
+  "expectedFirstResult": {
+    "titleContains": "範例大學",
+    "hostAfterGoogleRedirect": "public.site"
+  },
+  "fallback": "challenge-needs-user"
+}

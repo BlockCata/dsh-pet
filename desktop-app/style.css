@@ -1,0 +1,64 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+  user-select: none;
+}
+
+#pet-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+
+#pet-stage.dragging {
+  cursor: grabbing;
+}
+
+#pet-video {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+#pet-canvas {
+  position: absolute;
+  left: 7.142857%;
+  top: 16%;
+  width: 85.714286%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  image-rendering: auto;
+  pointer-events: none;
+  transform-origin: center;
+}
+
+#pet-error {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 12px;
+  color: #fff;
+  background: rgba(180, 35, 35, 0.85);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font: 13px/1.4 'Microsoft JhengHei', sans-serif;
+  text-align: center;
+  display: none;
+}
+
+#pet-error.visible {
+  display: block;
+}

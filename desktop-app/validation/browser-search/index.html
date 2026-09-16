@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Browser Search Transport Validation — TEST-ONLY</title>
+    <style>
+      :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+      body { margin: 0; padding: 32px; background: #17191f; color: #f4f5f7; }
+      main { max-width: 640px; margin: 0 auto; }
+      .badge { display: inline-block; padding: 6px 10px; border: 1px solid #ffb86b; color: #ffcf9b; font-weight: 700; letter-spacing: .08em; }
+      li { margin: 6px 0; color: #c8ccd5; }
+      code { color: #ffcf9b; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="badge">TEST-ONLY</p>
+      <h1>Browser Search Transport Validation</h1>
+      <p>This window is a fixed validation artifact. It has no chat, network controls, or arbitrary input.</p>
+      <h2>Compiled scenarios</h2>
+      <ul>
+        <li><code>a-normal</code>, <code>aaaa-normal</code>, <code>aaaa-only</code>, <code>mixed-private</code>, <code>negative-controls</code></li>
+        <li><code>dns-nxdomain</code>, <code>dns-nodata</code>, <code>dns-timeout</code></li>
+        <li><code>peer-mismatch</code>, <code>cert-mismatch</code></li>
+        <li><code>redirect-chain</code>, <code>redirect-loop</code>, <code>redirect-limit</code>, <code>redirect-unsafe-location</code></li>
+        <li><code>content-limit</code>, <code>framing-limit</code></li>
+        <li><code>hostile-parser</code>, <code>parser-negative-control</code>, <code>cancel</code>, <code>dispose</code>, <code>parser-electron-failure</code></li>
+      </ul>
+    </main>
+  </body>
+</html>
