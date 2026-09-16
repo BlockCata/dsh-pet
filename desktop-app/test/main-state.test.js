@@ -5,7 +5,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { EventEmitter } = require('node:events');
 
-async function boot({ holdLoad = false, streamReply, initialPets, initialMemory = {}, attachmentStore, browserSearch } = {}) {
+async function boot({ holdLoad = false, streamReply, initialPets, initialMemory = {}, attachmentStore, browserSearch, browserReader } = {}) {
   const windows = [];
   const handlers = new Map();
   const saves = [];
@@ -142,8 +142,9 @@ async function boot({ holdLoad = false, streamReply, initialPets, initialMemory 
       if (name === './browser-search/service.js') throw new Error('production main must not load active browser-search service');
       if (name === './browser-search/blocked.js') return { createBlockedBrowserSearch: (...args) => {
         browserFactoryCalls.push(args);
-        return browserSearch || { async search() { return { status: 'blocked', sources: [] }; }, cancel() {}, dispose() {} };
+        return browserReader || { async search() { return { status: 'blocked', sources: [] }; }, cancel() {}, dispose() {} };
       } };
+      if (name === './browser-search/coordinator.js') return { createWebQueryCoordinator: (input) => browserSearch || require('../src/browser-search/coordinator.js').createWebQueryCoordinator(input) };
       return require(name.startsWith('.') ? path.resolve(root, name) : name);
     },
   });
@@ -1081,4 +1082,99 @@ test('收合聊天泡泡會使敏感搜尋確認失效且不外送', async () =>
   assert.throws(() => env.handlers.get('chat:confirm-search')({ sender: bubble.webContents }, { requestId: 'collapse-sensitive', approved: true }), /失效/);
   await pending;
   assert.equal(browserCalls, 0);
+});
+
+test('main 將兩隻桌寵的 Web query 經同一個 coordinator 依 FIFO 執行', async () => {
+  const starts = [];
+  const pending = new Map();
+  const reader = {
+    search(request) {
+      starts.push(request.requestId);
+      return new Promise((resolve) => { pending.set(request.requestId, resolve); });
+    },
+    cancel() {},
+    dispose() {},
+  };
+  const env = await boot({
+    initialPets: [
+      { id: 'a', size: 100, x: 100, y: 200, displayId: 1, visible: true, roaming: true, webQueryEnabled: true },
+      { id: 'b', size: 100, x: 220, y: 200, displayId: 1, visible: true, roaming: true, webQueryEnabled: true },
+    ],
+    browserReader: reader,
+    streamReply: async function* (request) {
+      if (request.mode === 'greeting') { yield { type: 'done' }; return; }
+      if (request.sourceExcerpts) { yield { type: 'search-decision', decision: { type: 'answer' } }; yield { type: 'delta', text: '完成。' }; yield { type: 'done' }; return; }
+      yield { type: 'search-decision', decision: { type: 'search', query: '公開資料' } };
+      yield { type: 'done' };
+    },
+  });
+  const [firstChat, secondChat] = env.findAll('chat');
+  firstChat.click();
+  secondChat.click();
+  await new Promise(setImmediate);
+  const first = env.handlers.get('chat:send')({ sender: env.windows[2].webContents }, { requestId: 'a-first', text: '第一個' });
+  await new Promise(setImmediate);
+  const second = env.handlers.get('chat:send')({ sender: env.windows[3].webContents }, { requestId: 'b-second', text: '第二個' });
+  await new Promise(setImmediate);
+
+  assert.deepEqual(starts, ['a-first']);
+  pending.get('a-first')({ status: 'ok', sources: [{ title: '來源 A', url: 'https://example.com/a', retrievedAt: '2026-09-16T00:00:00.000Z', text: '內容 A' }] });
+  await first;
+  await new Promise(setImmediate);
+  assert.deepEqual(starts, ['a-first', 'b-second']);
+  pending.get('b-second')({ status: 'ok', sources: [{ title: '來源 B', url: 'https://example.com/b', retrievedAt: '2026-09-16T00:00:00.000Z', text: '內容 B' }] });
+  await second;
+  assert.equal(env.memoryWrites.length, 2);
+});
+
+test('lifecycle 取消 queued Web query 並 dispose active Web query，不會寫回或發送晚到事件', async () => {
+  const starts = [];
+  const pending = new Map();
+  const disposed = [];
+  const reader = {
+    search(request) {
+      starts.push(request.requestId);
+      return new Promise((resolve) => { pending.set(request.requestId, resolve); });
+    },
+    cancel() {},
+    dispose(petId) {
+      disposed.push(petId);
+      pending.get('active-a')?.({ status: 'ok', sources: [{ title: '晚到來源', url: 'https://example.com/late', retrievedAt: '2026-09-16T00:00:00.000Z', text: '晚到內容' }] });
+    },
+  };
+  const env = await boot({
+    initialPets: [
+      { id: 'a', size: 100, x: 100, y: 200, displayId: 1, visible: true, roaming: true, webQueryEnabled: true },
+      { id: 'b', size: 100, x: 220, y: 200, displayId: 1, visible: true, roaming: true, webQueryEnabled: true },
+    ],
+    browserReader: reader,
+    streamReply: async function* (request) {
+      if (request.mode === 'greeting') { yield { type: 'done' }; return; }
+      yield { type: 'search-decision', decision: { type: 'search', query: '公開資料' } };
+      yield { type: 'done' };
+    },
+  });
+  const [firstChat, secondChat] = env.findAll('chat');
+  firstChat.click();
+  secondChat.click();
+  await new Promise(setImmediate);
+  const firstBubble = env.windows[2];
+  const secondBubble = env.windows[3];
+  const active = env.handlers.get('chat:send')({ sender: firstBubble.webContents }, { requestId: 'active-a', text: '第一個' });
+  await new Promise(setImmediate);
+  const queued = env.handlers.get('chat:send')({ sender: secondBubble.webContents }, { requestId: 'queued-b', text: '第二個' });
+  await new Promise(setImmediate);
+
+  env.ipc.emit('chat:collapse', { sender: secondBubble.webContents });
+  env.app.emit('second-instance');
+  await new Promise(setImmediate);
+  await env.handlers.get('settings:remove')({ sender: env.windows.at(-1).webContents }, 'a');
+  await Promise.all([active, queued]);
+
+  assert.deepEqual(starts, ['active-a']);
+  assert.deepEqual(disposed, ['a']);
+  assert.deepEqual(env.memoryWrites, []);
+  for (const bubble of [firstBubble, secondBubble]) {
+    assert.equal(bubble.messages.some(([channel, event]) => channel === 'chat:event' && ['delta', 'sources', 'done'].includes(event.type)), false);
+  }
 });
