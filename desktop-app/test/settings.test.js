@@ -43,7 +43,7 @@ test('多隻與零隻設定可儲存還原；不接受重複 ID、非法數值�
   const pet = { id: 'a', size: 100, x: -500, y: 200, displayId: 2, visible: true, roaming: false };
   const state = { version: 1, pets: [pet, { ...pet, id: 'b', size: 150 }] };
   saveSettings(file, state);
-  assert.deepEqual(loadSettings(file), { version: 1, pets: state.pets.map((item) => ({
+  assert.deepEqual(loadSettings(file), { version: 1, searchBudget: { maxSearches: 2, maxCandidatePages: 3, maxExcerptChars: 18000, timeoutMs: 45000 }, pets: state.pets.map((item) => ({
     ...item, name: '小女僕', profile: { role: '', personality: '', speakingStyle: '' }, chatSize: { width: 380, height: 320 }, chatOffset: { x: 0, y: -80 }, ambientReactions: true, careEnabled: false, webQueryEnabled: false,
   })) });
   for (const invalid of [{ size: 0 }, { x: NaN }, { visible: 'false' }]) {
@@ -51,7 +51,7 @@ test('多隻與零隻設定可儲存還原；不接受重複 ID、非法數值�
   }
   assert.throws(() => validateSettings({ version: 1, pets: [pet, pet] }));
   saveSettings(file, { version: 1, pets: [] });
-  assert.deepEqual(loadSettings(file), { version: 1, pets: [] });
+  assert.deepEqual(loadSettings(file), { version: 1, searchBudget: { maxSearches: 2, maxCandidatePages: 3, maxExcerptChars: 18000, timeoutMs: 45000 }, pets: [] });
 });
 
 test('可保存永遠置頂與左右漫遊範圍，且拒絕無效範圍', () => {

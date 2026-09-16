@@ -12,7 +12,7 @@ async function exerciseUI(source) {
     el(id).dispatchEvent(new Event(type, { bubbles: true }));
   };
   const pet = { id: 'a', name: '夏奈', profile: { role: '藍髮女僕', personality: '細心', speakingStyle: '簡短回應' }, size: 100, x: 20, y: 40, displayId: 1, visible: true, roaming: true };
-  let state = { version: 1, pets: [pet], displays: [
+  let state = { version: 1, searchBudget: { maxSearches: 2, maxCandidatePages: 3, maxExcerptChars: 18000, timeoutMs: 45000 }, pets: [pet], displays: [
     { id: 1, label: '主螢幕', workArea: { x: 0, y: 0, width: 1920, height: 1040 }, scaleFactor: 1 },
     { id: 2, label: '左螢幕', workArea: { x: -1280, y: -100, width: 1280, height: 984 }, scaleFactor: 1.5 },
   ] };
@@ -37,6 +37,12 @@ async function exerciseUI(source) {
       if (hold) await new Promise((resolve) => { release = resolve; });
       if (failure) throw new Error(failure);
       state.pets = state.pets.map((item) => item.id === id ? { ...item, ...patch } : item);
+      changed(structuredClone(state));
+      return structuredClone(state);
+    },
+    saveSearchBudget: async (budget) => {
+      calls.push(['search-budget', budget]);
+      state.searchBudget = structuredClone(budget);
       changed(structuredClone(state));
       return structuredClone(state);
     },
@@ -110,6 +116,11 @@ async function exerciseUI(source) {
   await tick();
   check(document.querySelectorAll('#pet-list button').length === 1, 'initial pet must render');
   check(el('pet-title').textContent === '夏奈' && el('pet-name').value === '夏奈', '設定頁必須顯示桌寵名稱');
+  check(el('search-budget-searches').value === '2' && el('search-budget-pages').value === '3'
+    && el('search-budget-excerpt').value === '18000' && el('search-budget-timeout').value === '45000', '搜尋預算必須載入全域預設值');
+  change('search-budget-searches', '1'); change('search-budget-pages', '2'); change('search-budget-excerpt', '5000'); change('search-budget-timeout', '10000');
+  el('save-search-budget').click(); await tick();
+  equal(calls.at(-1), ['search-budget', { maxSearches: 1, maxCandidatePages: 2, maxExcerptChars: 5000, timeoutMs: 10000 }], '搜尋預算必須透過全域設定 API 保存');
   change('pet-name', '鈴音', 'input'); el('save-profile').click(); await tick();
   equal(calls.at(-1), ['a', { name: '鈴音', profile: { role: '藍髮女僕', personality: '細心', speakingStyle: '簡短回應' } }], '角色設定檔必須只更新目前桌寵');
   check(el('memory-mode').value === 'diary-30d' && el('auto-diary').checked, '記憶設定必須載入目前策略');
@@ -254,14 +265,14 @@ if (process.versions.electron && process.argv.includes('--settings-ui-fixture'))
         } } };
       },
     });
-    assert.deepEqual(Object.keys(api).sort(), ['addPet', 'clearMemory', 'deleteDiary', 'duplicatePet', 'editDiary', 'getAISettings', 'getMemory', 'getState', 'loadAIModels', 'onChanged', 'openDiary', 'removeKey', 'removePet', 'runDiary', 'saveAISettings', 'saveMemoryPolicy', 'testAIConnection', 'updatePet']);
+    assert.deepEqual(Object.keys(api).sort(), ['addPet', 'clearMemory', 'deleteDiary', 'duplicatePet', 'editDiary', 'getAISettings', 'getMemory', 'getState', 'loadAIModels', 'onChanged', 'openDiary', 'removeKey', 'removePet', 'runDiary', 'saveAISettings', 'saveMemoryPolicy', 'saveSearchBudget', 'testAIConnection', 'updatePet']);
     await api.getState(); await api.updatePet('a', { size: 150 }); await api.addPet(); await api.duplicatePet('a', { includeMemory: false }); await api.removePet('a');
     await api.getAISettings(); await api.saveAISettings({ provider: 'gemini', model: 'fixture', key: 'secret' }); await api.removeKey('gemini'); await api.testAIConnection(); await api.loadAIModels({ baseUrl: 'https://example.test/v1', key: 'secret' });
-    await api.getMemory('a'); await api.saveMemoryPolicy('a', { mode: 'diary-only', autoDiary: false }); await api.runDiary('a'); await api.openDiary('a'); await api.editDiary('a', 'd1', '日記'); await api.deleteDiary('a', 'd1', { deleteSources: true }); await api.clearMemory('a');
+    await api.getMemory('a'); await api.saveMemoryPolicy('a', { mode: 'diary-only', autoDiary: false }); await api.runDiary('a'); await api.openDiary('a'); await api.editDiary('a', 'd1', '日記'); await api.deleteDiary('a', 'd1', { deleteSources: true }); await api.clearMemory('a'); await api.saveSearchBudget({ maxSearches: 1, maxCandidatePages: 2, maxExcerptChars: 5000, timeoutMs: 10000 });
     assert.deepEqual(calls, [
       ['settings:get'], ['settings:update', 'a', { size: 150 }], ['settings:add'], ['settings:duplicate', 'a', { includeMemory: false }], ['settings:remove', 'a'],
       ['settings:ai-get'], ['settings:ai-save', { provider: 'gemini', model: 'fixture', key: 'secret' }], ['settings:ai-remove-key', 'gemini'], ['settings:ai-test'], ['settings:ai-models', { baseUrl: 'https://example.test/v1', key: 'secret' }],
-      ['settings:memory-get', 'a'], ['settings:memory-policy', 'a', { mode: 'diary-only', autoDiary: false }], ['settings:diary-run', 'a'], ['settings:diary-open', 'a'], ['settings:diary-edit', 'a', 'd1', '日記'], ['settings:diary-delete', 'a', 'd1', { deleteSources: true }], ['settings:memory-clear', 'a'],
+      ['settings:memory-get', 'a'], ['settings:memory-policy', 'a', { mode: 'diary-only', autoDiary: false }], ['settings:diary-run', 'a'], ['settings:diary-open', 'a'], ['settings:diary-edit', 'a', 'd1', '日記'], ['settings:diary-delete', 'a', 'd1', { deleteSources: true }], ['settings:memory-clear', 'a'], ['settings:search-budget-save', { maxSearches: 1, maxCandidatePages: 2, maxExcerptChars: 5000, timeoutMs: 10000 }],
     ]);
     const received = [];
     const unsubscribe = api.onChanged((...args) => received.push(args));

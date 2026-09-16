@@ -180,6 +180,45 @@ test('coordinator forwards the approved sensitive-query flag to the reader', asy
   await pending;
 });
 
+test('coordinator captures one immutable budget snapshot per request and shares it with session callback and reader', async () => {
+  const fake = createReader();
+  let liveBudget = { maxSearches: 2, maxCandidatePages: 3, maxExcerptChars: 18_000, timeoutMs: 45_000 };
+  const snapshots = [];
+  const coordinator = createWebQueryCoordinator({ reader: fake.reader, getBudget: () => liveBudget });
+  const active = coordinator.search({
+    petId: 'pet-a', requestId: 'a-budget', query: 'active',
+    onBudget: (snapshot) => snapshots.push(['active', snapshot]),
+  });
+  const queued = coordinator.search({
+    petId: 'pet-b', requestId: 'b-budget', query: 'queued',
+    onBudget: (snapshot) => snapshots.push(['queued', snapshot]),
+  });
+
+  liveBudget = { maxSearches: 1, maxCandidatePages: 1, maxExcerptChars: 1_000, timeoutMs: 1_000 };
+  assert.equal(snapshots.length, 2);
+  assert.equal(Object.isFrozen(snapshots[0][1]), true);
+  assert.strictEqual(fake.starts[0].budget, snapshots[0][1]);
+  assert.deepEqual(fake.starts[0].budget, { maxSearches: 2, maxCandidatePages: 3, maxExcerptChars: 18_000, timeoutMs: 45_000 });
+
+  fake.finish('a-budget');
+  await active;
+  await nextTurn();
+  assert.strictEqual(fake.starts[1].budget, snapshots[1][1]);
+  assert.deepEqual(fake.starts[1].budget, { maxSearches: 2, maxCandidatePages: 3, maxExcerptChars: 18_000, timeoutMs: 45_000 });
+  fake.finish('b-budget');
+  await queued;
+
+  const followUp = coordinator.search({
+    petId: 'pet-a', requestId: 'a-budget-follow-up', query: 'follow-up',
+    budgetSnapshot: snapshots[0][1],
+    onBudget: () => snapshots.push(['unexpected', null]),
+  });
+  assert.equal(snapshots.length, 2);
+  assert.strictEqual(fake.starts[2].budget, snapshots[0][1]);
+  fake.finish('a-budget-follow-up');
+  await followUp;
+});
+
 test('diagnostics retain only allowlisted terminal fields and evict by age and capacity', () => {
   let time = 0;
   const diagnostics = createWebQueryDiagnostics({ now: () => time, maxEvents: 2, retentionMs: 30 });

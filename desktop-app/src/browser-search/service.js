@@ -1,5 +1,6 @@
 const { canonicalizeSearchQuery, normalizeSearchQuery, searchUrl } = require('../chat/search.js');
 const { canonicalizePublicHttpsUrl } = require('./policy.js');
+const { DEFAULT_SEARCH_BUDGET, normalizeSearchBudget } = require('./budget.js');
 
 const MAX_REDIRECT_HOPS = 5;
 const MAX_CANDIDATES = 3;
@@ -52,6 +53,15 @@ function resultForCode(code, fallback = 'response-invalid') {
 
 function bounded(value, limit) {
   return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, limit) : '';
+}
+
+function requestBudget(value, fallbackTimeoutMs) {
+  if (value !== undefined) return value;
+  const timeout = Number.isFinite(fallbackTimeoutMs) && fallbackTimeoutMs > 0
+    ? Math.min(fallbackTimeoutMs, DEFAULT_SEARCH_BUDGET.timeoutMs)
+    : DEFAULT_SEARCH_BUDGET.timeoutMs;
+  try { return normalizeSearchBudget({ ...DEFAULT_SEARCH_BUDGET, timeoutMs: timeout }); }
+  catch { return { ...DEFAULT_SEARCH_BUDGET, timeoutMs: timeout }; }
 }
 
 async function adoptLateParser(parserPromise) {
@@ -167,7 +177,7 @@ function createPinnedBrowserSearch({ transport, parserFactory, robotsPolicy, now
     return code === 'browser-search-parser-egress-blocked' ? parserResult(code) : resultForCode(code);
   }
 
-  async function performSearch(petId, state, query, parser) {
+  async function performSearch(petId, state, query, parser, budget) {
     const search = await fetchFollowingRedirects(searchUrl(query), petId, state, 'search');
     if (typeof search === 'string') return resultForCode(search);
 
@@ -183,7 +193,7 @@ function createPinnedBrowserSearch({ transport, parserFactory, robotsPolicy, now
 
     const sources = [];
     let totalText = 0;
-    const candidateLimit = Math.min(candidates.length, MAX_CANDIDATES);
+    const candidateLimit = Math.min(candidates.length, budget.maxCandidatePages, MAX_CANDIDATES);
     for (let index = 0; index < candidateLimit; index += 1) {
       if (!isCurrent(petId, state)) return resultForCode(currentCode(state));
       const candidate = candidates[index];
@@ -210,7 +220,7 @@ function createPinnedBrowserSearch({ transport, parserFactory, robotsPolicy, now
       if (!isCurrent(petId, state)) return resultForCode(currentCode(state));
 
       const title = bounded(extracted?.title || candidate.title, MAX_TITLE_CHARS);
-      const text = bounded(extracted?.text, Math.min(MAX_TEXT_CHARS, MAX_TOTAL_TEXT_CHARS - totalText));
+      const text = bounded(extracted?.text, Math.min(MAX_TEXT_CHARS, budget.maxExcerptChars - totalText, MAX_TOTAL_TEXT_CHARS - totalText));
       if (!title || !text) continue;
       totalText += text.length;
       sources.push({
@@ -225,7 +235,7 @@ function createPinnedBrowserSearch({ transport, parserFactory, robotsPolicy, now
     return sources.length ? { status: 'ok', sources } : result('empty');
   }
 
-  async function search({ petId, requestId, query, signal, sensitiveQueryApproved = false } = {}) {
+  async function search({ petId, requestId, query, signal, sensitiveQueryApproved = false, budget } = {}) {
     if (!enabled) return result('blocked', 'transport-unavailable');
     let normalized;
     try {
@@ -252,7 +262,8 @@ function createPinnedBrowserSearch({ transport, parserFactory, robotsPolicy, now
     const abort = () => cancelState(state);
     if (signal?.aborted) abort();
     else signal?.addEventListener('abort', abort, { once: true });
-    const timeout = setTimeout(() => cancelState(state, 'search-timeout'), timeoutMs);
+    const requestLimits = requestBudget(budget, timeoutMs);
+    const timeout = setTimeout(() => cancelState(state, 'search-timeout'), requestLimits.timeoutMs);
     let parser;
     let parserPromise;
     let outcome;
@@ -272,7 +283,7 @@ function createPinnedBrowserSearch({ transport, parserFactory, robotsPolicy, now
             parser = created;
             if (!parser || typeof parser.parseSearchResults !== 'function' || typeof parser.parsePage !== 'function') outcome = result('blocked', 'parser-output-invalid');
             else if (!isCurrent(petId, state)) outcome = resultForCode(currentCode(state));
-            else outcome = await performSearch(petId, state, normalized, parser);
+            else outcome = await performSearch(petId, state, normalized, parser, requestLimits);
           }
         }
       }

@@ -1,5 +1,6 @@
 const { randomUUID } = require('node:crypto');
 const { canonicalizeSearchQuery, isSensitiveSearchQuery, validateSourceUrl } = require('./search.js');
+const { DEFAULT_SEARCH_BUDGET } = require('../browser-search/budget.js');
 
 const DISPOSE_TIMEOUT_MS = 100;
 const CLEANUP_FAILURE_REASON = 'browser-search-parser-cleanup-failed';
@@ -22,13 +23,14 @@ function createSessions({ streamReply, getConnection, getProfile = () => null, g
   const sessions = new Map();
   const disposalBarriers = new Map();
 
-  function sourceExcerpts(sources, existing = []) {
+  function sourceExcerpts(sources, existing = [], budget = DEFAULT_SEARCH_BUDGET) {
     const excerpts = structuredClone(existing);
     const displayed = excerpts.map(({ text, ...source }) => source);
     const initialCount = excerpts.length;
-    let remaining = 18_000 - excerpts.reduce((total, source) => total + source.text.length, 0);
+    const maxSources = budget.maxSearches * budget.maxCandidatePages;
+    let remaining = budget.maxExcerptChars - excerpts.reduce((total, source) => total + source.text.length, 0);
     for (const source of Array.isArray(sources) ? sources : []) {
-      if (excerpts.length === 6 || remaining === 0) break;
+      if (excerpts.length === maxSources || remaining === 0) break;
       if (typeof source?.text !== 'string') continue;
       let url;
       try {
@@ -124,6 +126,7 @@ function createSessions({ streamReply, getConnection, getProfile = () => null, g
       const profile = diaryResult ? { ...(getProfile(petId) || {}), diaryResult: diaryResult.status } : getProfile(petId);
       let modelCalls = 0;
       let searches = 0;
+      let searchBudget;
       let sourceContext;
       let sources = [];
       while (!completed && modelCalls < 3) {
@@ -160,7 +163,7 @@ function createSessions({ streamReply, getConnection, getProfile = () => null, g
           completed = true;
           break;
         }
-        if (decision?.type !== 'search' || searches === 2 || modelCalls === 3) {
+        if (decision?.type !== 'search' || (searchBudget && searches === searchBudget.maxSearches) || modelCalls === 3) {
           const text = searchFailure('blocked');
           assistant.text += text;
           emit(petId, { requestId, type: 'delta', text });
@@ -193,7 +196,17 @@ function createSessions({ streamReply, getConnection, getProfile = () => null, g
           sensitiveQueryApproved = true;
         }
         let result;
-        try { result = await browserSearch.search({ petId, requestId, query: canonicalQuery, sensitiveQueryApproved, signal: controller.signal }); }
+        try {
+          result = await browserSearch.search({
+            petId,
+            requestId,
+            query: canonicalQuery,
+            sensitiveQueryApproved,
+            signal: controller.signal,
+            budgetSnapshot: searchBudget,
+            onBudget: (snapshot) => { if (!searchBudget) searchBudget = snapshot; },
+          });
+        }
         catch (error) {
           if (controller.signal.aborted || error?.name === 'AbortError') throw error;
           const text = searchFailure(error?.code === 'timeout' ? 'timeout' : 'blocked');
@@ -210,7 +223,7 @@ function createSessions({ streamReply, getConnection, getProfile = () => null, g
           completed = true;
           break;
         }
-        const safeSources = sourceExcerpts(result.sources, sourceContext);
+        const safeSources = sourceExcerpts(result.sources, sourceContext, searchBudget || DEFAULT_SEARCH_BUDGET);
         if (!safeSources.added) {
           const text = searchFailure('empty');
           assistant.text += text;

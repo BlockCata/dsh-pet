@@ -11,6 +11,7 @@ const { createConfigStore, normalizeBaseUrl } = require('./ai/config-store.js');
 const { testConnection, listModels, streamReply } = require('./ai/providers.js');
 const { createBlockedBrowserSearch } = require('./browser-search/blocked.js');
 const { createWebQueryCoordinator } = require('./browser-search/coordinator.js');
+const { DEFAULT_SEARCH_BUDGET } = require('./browser-search/budget.js');
 const { createSessions } = require('./chat/session.js');
 const { createChatWindows } = require('./chat/window.js');
 const { createActionCatalog, createActionChoices, createActionDirector } = require('./chat/actions.js');
@@ -23,7 +24,7 @@ const { selectContextForMemory } = require('./memory/context.js');
 const config = require('../assets/animations.json');
 
 const pets = new Map();
-let state = { version: 1, pets: [] };
+let state = { version: 1, pets: [], searchBudget: { ...DEFAULT_SEARCH_BUDGET } };
 let settingsFile;
 let aiConfigStore;
 let memoryStore;
@@ -277,7 +278,7 @@ function createPet(pet) {
 }
 
 function commitPets(nextPets) {
-  const next = validateSettings({ version: 1, pets: nextPets });
+  const next = validateSettings({ version: 1, pets: nextPets, searchBudget: state.searchBudget });
   saveSettings(settingsFile, next);
   state = next;
   for (const [id, record] of pets) {
@@ -305,6 +306,14 @@ function commitPets(nextPets) {
     syncCare(pets.get(pet.id));
   }
   refreshTray();
+  notifySettings();
+  return snapshot();
+}
+
+function commitSearchBudget(searchBudget) {
+  const next = validateSettings({ version: 1, pets: state.pets, searchBudget });
+  saveSettings(settingsFile, next);
+  state = next;
   notifySettings();
   return snapshot();
 }
@@ -560,6 +569,7 @@ for (const [channel, handler] of Object.entries({
   'settings:add': () => addPet(),
   'settings:duplicate': (id, options) => duplicatePet(id, options),
   'settings:update': (id, patch) => updatePet(id, patch),
+  'settings:search-budget-save': (searchBudget) => commitSearchBudget(searchBudget),
   'settings:remove': (id) => removePet(id),
   'settings:memory-get': (id) => requirePetMemory(id),
   'settings:memory-policy': async (id, policy) => {
@@ -628,7 +638,7 @@ else {
       getConnection: () => aiConfigStore.getConnection(),
       emit: () => {},
     });
-    const browserSearch = createWebQueryCoordinator({ reader: createBlockedBrowserSearch() });
+    const browserSearch = createWebQueryCoordinator({ reader: createBlockedBrowserSearch(), getBudget: () => state.searchBudget });
     const actionCatalog = createActionCatalog(config.animations);
     const actionChoices = createActionChoices(actionCatalog);
     actionDirector = createActionDirector({
@@ -678,7 +688,10 @@ else {
     tray = new Tray(nativeImage.createFromPath(path.join(__dirname, '..', 'assets', 'tray.png')).resize({ width: 32, height: 32 }));
     tray.setToolTip('藍髮小女僕｜按一下開啟設定，右鍵管理桌寵');
     tray.on('click', openSettings);
-    if (saved) commitPets(saved.pets.map((pet) => recoverPet(pet, screen.getAllDisplays())));
+    if (saved) {
+      state = saved;
+      commitPets(saved.pets.map((pet) => recoverPet(pet, screen.getAllDisplays())));
+    }
     else addPet();
     initialized = true;
     for (const record of pets.values()) startStartupGreeting(record);

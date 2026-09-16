@@ -133,7 +133,7 @@ function createWebQueryCoordinator({ reader, getBudget = () => ({}), diagnostics
     return cleanup;
   }
 
-  function search({ petId, requestId, query, signal, sensitiveQueryApproved = false } = {}) {
+  function search({ petId, requestId, query, signal, sensitiveQueryApproved = false, budgetSnapshot, onBudget } = {}) {
     if (queue.length >= MAX_QUEUED_REQUESTS && active) {
       const error = new Error('web-query-queue-full');
       error.code = 'web-query-queue-full';
@@ -141,13 +141,16 @@ function createWebQueryCoordinator({ reader, getBudget = () => ({}), diagnostics
       return Promise.reject(error);
     }
     let resolve;
+    const captured = budgetSnapshot === undefined;
+    const budget = captured ? cloneBudget(getBudget()) : budgetSnapshot;
+    if (captured) onBudget?.(budget);
     const entry = {
       petId,
       requestId,
       query,
       sensitiveQueryApproved,
       signal,
-      budget: cloneBudget(getBudget()),
+      budget,
       startedAt: now(),
       settled: false,
       cancelled: false,

@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { normalizeSearchBudget } = require('./browser-search/budget.js');
 
 const DEFAULT_NAME = '小女僕';
 const DEFAULT_PROFILE = { role: '', personality: '', speakingStyle: '' };
@@ -67,7 +68,7 @@ function validateSettings(value) {
     if (pet.roamingRange !== undefined) normalized.roamingRange = { left: Math.round(pet.roamingRange.left), right: Math.round(pet.roamingRange.right) };
     return normalized;
   });
-  return { version: 1, pets };
+  return { version: 1, pets, searchBudget: normalizeSearchBudget(value.searchBudget) };
 }
 
 function loadSettings(file) {

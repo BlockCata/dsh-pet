@@ -847,6 +847,27 @@ test('只有設定視窗可用當次輸入的自訂 API 金鑰載入模型清單
   assert.throws(() => env.handlers.get('settings:ai-models')({ sender: env.windows[0].webContents }, { baseUrl: 'https://example.test/v1', key: 'fixture' }), /請從設定視窗操作/);
 });
 
+test('全域搜尋預算只可由設定視窗更新並保存，且安全政策欄位不可設定', async () => {
+  const env = await boot();
+  env.app.emit('second-instance');
+  await new Promise(setImmediate);
+  const settingsWindow = env.windows[1];
+
+  assert.deepEqual((await env.handlers.get('settings:get')({ sender: settingsWindow.webContents })).searchBudget, {
+    maxSearches: 2, maxCandidatePages: 3, maxExcerptChars: 18_000, timeoutMs: 45_000,
+  });
+  await env.handlers.get('settings:search-budget-save')({ sender: settingsWindow.webContents }, {
+    maxSearches: 1, maxCandidatePages: 2, maxExcerptChars: 5_000, timeoutMs: 10_000,
+  });
+  assert.deepEqual(env.saves.at(-1).searchBudget, { maxSearches: 1, maxCandidatePages: 2, maxExcerptChars: 5_000, timeoutMs: 10_000 });
+  assert.throws(() => env.handlers.get('settings:search-budget-save')({ sender: env.windows[0].webContents }, {
+    maxSearches: 1, maxCandidatePages: 2, maxExcerptChars: 5_000, timeoutMs: 10_000,
+  }), /請從設定視窗操作/);
+  assert.throws(() => env.handlers.get('settings:search-budget-save')({ sender: settingsWindow.webContents }, {
+    maxSearches: 1, maxCandidatePages: 2, maxExcerptChars: 5_000, timeoutMs: 10_000, redirectLimit: 99,
+  }), /搜尋預算/);
+});
+
 test('main production factory only constructs the blocked browser adapter without runtime inputs', async () => {
   const env = await boot({
     initialPets: [{ id: 'a', size: 100, x: 100, y: 200, displayId: 1, visible: true, roaming: true, webQueryEnabled: true }],

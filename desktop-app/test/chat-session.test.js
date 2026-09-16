@@ -445,6 +445,92 @@ test('敏感搜尋同意後只由主程序外送已保存的 canonical query', a
   assert.equal(sessions.getMessages('a').at(-1).text, '已完成。');
 });
 
+test('Web query 在模型決策後設定變更時，session、Coordinator 與 reader 仍共用入隊時 snapshot', async () => {
+  const { createSessions } = require('../src/chat/session.js');
+  const { createWebQueryCoordinator } = require('../src/browser-search/coordinator.js');
+  const events = [];
+  const requests = [];
+  const readerRequests = [];
+  const readerResult = {};
+  readerResult.promise = new Promise((resolve) => { readerResult.resolve = resolve; });
+  let decisionSeen;
+  const decisionGate = new Promise((resolve) => { decisionSeen = resolve; });
+  let releaseDecision;
+  const afterDecision = new Promise((resolve) => { releaseDecision = resolve; });
+  let liveBudget = { maxSearches: 2, maxCandidatePages: 3, maxExcerptChars: 5_000, timeoutMs: 10_000 };
+  const coordinator = createWebQueryCoordinator({
+    reader: {
+      search(request) { readerRequests.push(request); return readerResult.promise; },
+      cancel() {},
+      dispose() {},
+    },
+    getBudget: () => liveBudget,
+  });
+  const sessions = createSessions({
+    getConnection: () => ({ provider: 'gemini', model: 'fixture', key: 'private' }),
+    browserSearch: coordinator,
+    emit: (_petId, event) => events.push(event),
+    streamReply: async function* (request) {
+      requests.push(request);
+      if (requests.length === 1) {
+        yield { type: 'search-decision', decision: { type: 'search', query: '公開資料' } };
+        decisionSeen();
+        await afterDecision;
+      } else {
+        assert.equal(request.sourceExcerpts.length, 1);
+        assert.equal(request.sourceExcerpts[0].text.length, 1_000);
+        yield { type: 'search-decision', decision: { type: 'answer' } };
+        yield { type: 'delta', text: '完成。' };
+      }
+      yield { type: 'done' };
+    },
+  });
+
+  const pending = sessions.send('a', { requestId: 'budget-timing', text: '查詢', mode: 'chat', allowWebSearch: true });
+  await decisionGate;
+  liveBudget = { maxSearches: 1, maxCandidatePages: 1, maxExcerptChars: 1_000, timeoutMs: 1_000 };
+  releaseDecision();
+  await new Promise(setImmediate);
+  assert.equal(readerRequests.length, 1);
+  assert.deepEqual(readerRequests[0].budget, liveBudget);
+  readerResult.resolve({ status: 'ok', sources: [{ title: '來源', url: 'https://example.com/', retrievedAt: '2026-09-16T00:00:00.000Z', coverage: 'page', text: '甲'.repeat(6_000) }] });
+  await pending;
+
+  assert.equal(requests.length, 2);
+  assert.ok(events.some((event) => event.type === 'done'));
+});
+
+test('session 使用 Coordinator snapshot 限制同一 Web query 的搜尋次數', async () => {
+  const { createSessions } = require('../src/chat/session.js');
+  const calls = [];
+  const snapshot = Object.freeze({ maxSearches: 1, maxCandidatePages: 3, maxExcerptChars: 18_000, timeoutMs: 45_000 });
+  let modelCalls = 0;
+  const sessions = createSessions({
+    getConnection: () => ({}),
+    emit() {},
+    browserSearch: {
+      async search(request) {
+        calls.push(request);
+        request.onBudget(snapshot);
+        return { status: 'ok', sources: [{ title: '來源', url: 'https://example.com/', retrievedAt: '2026-09-16T00:00:00.000Z', coverage: 'page', text: '內容' }] };
+      },
+      cancel() {},
+      dispose() {},
+    },
+    streamReply: async function* () {
+      modelCalls++;
+      yield { type: 'search-decision', decision: { type: 'search', query: `第${modelCalls}次` } };
+      yield { type: 'done' };
+    },
+  });
+
+  await sessions.send('a', { requestId: 'search-limit', text: '查詢', mode: 'chat', allowWebSearch: true });
+
+  assert.equal(calls.length, 1);
+  assert.equal(modelCalls, 2);
+  assert.match(sessions.getMessages('a').at(-1).text, /無法取得可驗證的公開資料/);
+});
+
 test('敏感搜尋的錯誤確認、拒絕與取消都不外送', async () => {
   const { createSessions } = require('../src/chat/session.js');
   const events = [];

@@ -90,6 +90,17 @@
         </div>
         <div id="diary-list" class="diary-list" aria-label="已保存日記"></div>
       </section>
+      <section id="search-budget-settings" aria-labelledby="search-budget-heading">
+        <div class="section-heading"><h2 id="search-budget-heading">網頁查詢進階預算</h2></div>
+        <p class="hint">這些是全應用程式共用的成本與回應時間上限；不會改變 DNS、TLS、網址、轉址或私網封鎖規則。變更只套用到之後開始的查詢。</p>
+        <div class="memory-grid">
+          <label for="search-budget-searches">每回合搜尋次數<input id="search-budget-searches" type="number" min="1" max="2" step="1" required></label>
+          <label for="search-budget-pages">每次搜尋 Candidate page 數<input id="search-budget-pages" type="number" min="1" max="3" step="1" required></label>
+          <label for="search-budget-excerpt">摘錄總字數<input id="search-budget-excerpt" type="number" min="1000" max="18000" step="1" required></label>
+          <label for="search-budget-timeout">整回合 timeout（毫秒）<input id="search-budget-timeout" type="number" min="1000" max="45000" step="1" required></label>
+          <div class="memory-actions"><button id="save-search-budget" class="primary" type="button">儲存搜尋預算</button></div>
+        </div>
+      </section>
       <section id="ai-settings" aria-labelledby="ai-heading">
         <div class="section-heading"><h2 id="ai-heading">AI 對話連線</h2><span id="ai-key-status" class="hint"></span></div>
         <p class="hint">金鑰只儲存在本機系統加密空間，不會顯示或傳給桌寵視窗。</p>

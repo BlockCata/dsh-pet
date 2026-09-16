@@ -18,6 +18,18 @@
   let petMemory = { policy: { mode: 'diary-30d', autoDiary: true }, messages: [], diaries: [] };
   let memoryPetId = null;
   let memoryRequest = 0;
+  const defaultSearchBudget = { maxSearches: 2, maxCandidatePages: 3, maxExcerptChars: 18000, timeoutMs: 45000 };
+
+  function renderSearchBudget() {
+    const budget = state.searchBudget || defaultSearchBudget;
+    for (const [id, value] of Object.entries({
+      'search-budget-searches': budget.maxSearches,
+      'search-budget-pages': budget.maxCandidatePages,
+      'search-budget-excerpt': budget.maxExcerptChars,
+      'search-budget-timeout': budget.timeoutMs,
+    })) if (document.activeElement !== el(id)) el(id).value = value;
+    el('save-search-budget').disabled = busy;
+  }
 
   function status(message, kind = '') {
     el('status').textContent = message;
@@ -28,6 +40,7 @@
     const pet = state.pets.find((item) => item.id === selectedId);
     const switched = renderedId !== selectedId;
     el('pet-count').textContent = state.pets.length;
+    renderSearchBudget();
     for (const [id, row] of rows) {
       if (!state.pets.some((item) => item.id === id)) { row.remove(); rows.delete(id); }
     }
@@ -410,6 +423,22 @@
   });
   el('clear-memory').addEventListener('click', () => {
     if (window.confirm('確定清除這隻桌寵的所有對話與日記？此操作無法復原。')) saveMemory((id) => api.clearMemory(id));
+  });
+  el('save-search-budget').addEventListener('click', () => {
+    const budget = {
+      maxSearches: Number(el('search-budget-searches').value),
+      maxCandidatePages: Number(el('search-budget-pages').value),
+      maxExcerptChars: Number(el('search-budget-excerpt').value),
+      timeoutMs: Number(el('search-budget-timeout').value),
+    };
+    if (!Number.isSafeInteger(budget.maxSearches) || budget.maxSearches < 1 || budget.maxSearches > 2
+      || !Number.isSafeInteger(budget.maxCandidatePages) || budget.maxCandidatePages < 1 || budget.maxCandidatePages > 3
+      || !Number.isSafeInteger(budget.maxExcerptChars) || budget.maxExcerptChars < 1000 || budget.maxExcerptChars > 18000
+      || !Number.isSafeInteger(budget.timeoutMs) || budget.timeoutMs < 1000 || budget.timeoutMs > 45000) {
+      status('搜尋預算超出允許範圍。', 'error');
+      return;
+    }
+    save(() => api.saveSearchBudget(budget));
   });
   el('ai-provider').addEventListener('change', () => {
     selectedProvider = el('ai-provider').value;

@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('settingsAPI', {
   removePet: (id) => ipcRenderer.invoke('settings:remove', id),
   getMemory: (id) => ipcRenderer.invoke('settings:memory-get', id),
   saveMemoryPolicy: (id, policy) => ipcRenderer.invoke('settings:memory-policy', id, policy),
+  saveSearchBudget: (budget) => ipcRenderer.invoke('settings:search-budget-save', budget),
   runDiary: (id) => ipcRenderer.invoke('settings:diary-run', id),
   openDiary: (id) => ipcRenderer.invoke('settings:diary-open', id),
   editDiary: (id, diaryId, text) => ipcRenderer.invoke('settings:diary-edit', id, diaryId, text),

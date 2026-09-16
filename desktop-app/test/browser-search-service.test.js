@@ -221,6 +221,28 @@ test('only the first three candidates count, including candidates rejected by tr
   assert.equal(result.sources.length, 2);
 });
 
+test('service applies the immutable request budget to candidate pages and total excerpt text', async () => {
+  const candidates = [
+    { title: '第一頁', url: 'https://public.site/one' },
+    { title: '第二頁', url: 'https://public.site/two' },
+  ];
+  const { service, calls } = createHarness({
+    candidates,
+    responses: [body(SEARCH_URL), body(candidates[0].url), body(candidates[1].url)],
+    pageResults: [{ title: '第一頁', text: '甲'.repeat(6_000) }, { title: '第二頁', text: '乙'.repeat(6_000) }],
+  });
+
+  const result = await service.search({
+    petId: 'pet-budget', requestId: 'budget-1', query: 'topic',
+    budget: { maxSearches: 1, maxCandidatePages: 1, maxExcerptChars: 5_000, timeoutMs: 10_000 },
+  });
+
+  assert.equal(result.status, 'ok');
+  assert.deepEqual(calls.fetch.map(({ url }) => url), [SEARCH_URL, candidates[0].url]);
+  assert.equal(result.sources.length, 1);
+  assert.equal(result.sources[0].text.length, 5_000);
+});
+
 test('search parser egress blocks the whole request, while an ordinary page failure is skipped', async () => {
   const searchBlocked = createHarness({
     candidates: [{ title: '頁面', url: 'https://public.site/page' }],
