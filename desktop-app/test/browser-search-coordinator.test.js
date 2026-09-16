@@ -127,6 +127,27 @@ test('coordinator dispose cancels every request for one pet and waits for active
   await queuedOtherPet;
 });
 
+test('coordinator holds queued work until reader disposal completes after active search settles', async () => {
+  const fake = createReader();
+  const readerDisposal = deferred();
+  fake.reader.dispose = () => readerDisposal.promise;
+  const coordinator = createWebQueryCoordinator({ reader: fake.reader });
+  const active = coordinator.search({ petId: 'pet-a', requestId: 'a-1', query: 'active' });
+  const queued = coordinator.search({ petId: 'pet-b', requestId: 'b-1', query: 'queued' });
+
+  const disposal = coordinator.dispose('pet-a');
+  assert.deepEqual(await active, cancelled());
+  fake.finish('a-1');
+  await nextTurn();
+  assert.deepEqual(fake.starts.map((request) => request.requestId), ['a-1']);
+  readerDisposal.resolve();
+  await disposal;
+  await nextTurn();
+  assert.deepEqual(fake.starts.map((request) => request.requestId), ['a-1', 'b-1']);
+  fake.finish('b-1');
+  await queued;
+});
+
 test('coordinator captures an immutable budget snapshot at admission and gives it to the reader', async () => {
   const fake = createReader();
   const liveBudget = { maxPages: 3, nested: { timeoutMs: 45_000 } };

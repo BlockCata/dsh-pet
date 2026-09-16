@@ -34,3 +34,26 @@ Implemented Task 1 only. The new coordinator is an application-wide, injected bo
 ## Concerns / follow-up
 
 Task 2 still needs to construct and inject the coordinator into the existing main/session boundary. This Task 1 verification does not enable public reader transport, packaging, release, or claim network-isolation validation.
+
+## Fix round 1 — disposal admission barrier
+
+### Files changed
+
+- `desktop-app/src/browser-search/coordinator.js` — blocks queue pumping while an active request's `reader.dispose()` is pending, then retries admission after that cleanup settles.
+- `desktop-app/test/browser-search-coordinator.test.js` — adds a deferred reader-disposal behavior test proving a different pet's queued request cannot start after active search settlement but before disposal completion.
+- This report — records the review fix evidence.
+
+### RED/GREEN evidence
+
+RED command: `node --test test/browser-search-coordinator.test.js`.
+Before the fix: 8 tests, 7 pass, 1 fail. The new test failed with actual reader start order `['a-1', 'b-1']` while reader disposal was still pending; expected `['a-1']`.
+
+GREEN command: `node --test test/browser-search-coordinator.test.js`.
+After the fix: 8 tests, 8 pass, 0 fail, 0 skipped, duration 51.2739 ms.
+
+Full command: `npm.cmd test` in `desktop-app`.
+Output: exit code 0; 337 tests, 334 pass, 0 fail, 3 skipped, 0 todo, duration 30222.2933 ms. The three skips remain existing environment-gated renderer/Electron tests.
+
+### Review result
+
+The queue gate is application-wide and is registered before active cancellation, so even a reader search that settles during disposal cannot admit later work until the matching `reader.dispose()` promise settles. The public `search/cancel/dispose` API and the fail-closed production reader policy remain unchanged.

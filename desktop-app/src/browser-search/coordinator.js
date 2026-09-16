@@ -28,6 +28,7 @@ function createWebQueryCoordinator({ reader, getBudget = () => ({}), diagnostics
   if (typeof reader?.search !== 'function') throw new TypeError('reader.search is required');
 
   let active;
+  let pendingDisposals = 0;
   const queue = [];
 
   function record(entry, outcome) {
@@ -62,9 +63,25 @@ function createWebQueryCoordinator({ reader, getBudget = () => ({}), diagnostics
   }
 
   function pump() {
-    if (active || !queue.length) return;
+    if (active || pendingDisposals || !queue.length) return;
     active = queue.shift();
     void run(active);
+  }
+
+  function holdDisposal(cleanup) {
+    pendingDisposals += 1;
+    return Promise.resolve(cleanup).then(
+      (value) => {
+        pendingDisposals -= 1;
+        pump();
+        return value;
+      },
+      (error) => {
+        pendingDisposals -= 1;
+        pump();
+        throw error;
+      },
+    );
   }
 
   async function run(entry) {
@@ -104,8 +121,12 @@ function createWebQueryCoordinator({ reader, getBudget = () => ({}), diagnostics
     let cleanup = Promise.resolve();
     if (active?.petId === petId) {
       const entry = active;
+      let readerCleanup;
+      try { readerCleanup = reader.dispose?.(petId); }
+      catch (error) { readerCleanup = Promise.reject(error); }
+      const disposal = holdDisposal(readerCleanup);
       cancel(petId, entry.requestId);
-      cleanup = Promise.all([entry.cleanup, Promise.resolve(reader.dispose?.(petId))]);
+      cleanup = Promise.all([entry.cleanup, disposal]);
     }
     cancel(petId);
     return cleanup;
