@@ -1,6 +1,6 @@
 {
-  "name": "blue-maid-desktop-pet",
-  "version": "0.5.10",
+  "name": "big-fat-fish-desktop-pet",
+  "version": "0.5.13-safe",
   "private": true,
   "description": "Windows standalone desktop pet based on the dsh-pet assets.",
   "main": "src/main.js",
@@ -17,10 +17,10 @@
   },
   "build": {
     "appId": "local.bluemaid.desktoppet",
-    "productName": "藍髮小女僕桌寵",
+    "productName": "大肥魚桌寵",
     "asar": true,
     "directories": {
-      "output": "release-0.5.10"
+      "output": "release-0.5.13-safe"
     },
     "files": [
       "index.html",
@@ -42,7 +42,7 @@
           "arch": ["x64"]
         }
       ],
-      "artifactName": "blue-maid-desktop-pet-${version}.${ext}"
+      "artifactName": "big-fat-fish-${version}.${ext}"
     }
   }
 }
