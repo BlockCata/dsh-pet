@@ -1,0 +1,3 @@
+# Use an application-wide search budget with hard security ceilings
+
+Web-query resource limits are configured once for the application rather than per pet. The configurable search-turn, candidate-page, excerpt-text, and timeout values must remain within compiled hard ceilings; URL policy, DNS and TLS rules, redirect limits, and private-address rejection are not configuration. Each web query captures one immutable budget snapshot, so a later configuration change applies only to the next query. The application admits one active web query at a time and keeps a FIFO queue of at most ten later requests; a full queue rejects new requests, while cancellation and lifecycle invalidation remove the affected queued request.
