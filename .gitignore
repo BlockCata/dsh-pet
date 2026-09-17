@@ -37,6 +37,21 @@ npm-debug.log*
 desktop-app/archive/
 desktop-app/test-profile/
 
+# ── Local secrets / environment ──
+.env
+.env.*
+!.env.example
+.secrets/
+
+# ── Private keys / certificates ──
+*.pem
+*.key
+*.p12
+*.pfx
+
+# ── Local screenshots / privacy-sensitive captures ──
+assets/screenshots/
+
 # ── 临时/备份目录 ──
 temp/
 
